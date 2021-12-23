@@ -477,6 +477,8 @@ private:
     
     NavigationStyle const navigationStyle_ = Standard;
     
+    MediaTrack* track_ = nullptr;
+    bool isTrackDependent_ = false;
     int slotIndex_ = 0;
 
     vector<Widget*> widgets_;
@@ -502,6 +504,23 @@ public:
     void SetNavigator(Navigator* navigator) { navigator_ = navigator; }
     void AddIncludedZone(Zone* &zone) { includedZones_.push_back(zone); }
     void RequestUpdateWidget(Widget* widget);
+
+    bool isValid()
+    {
+        if (isTrackDependent_)
+            return GetNavigator()->GetTrack() == track_;
+
+        return true;
+    }
+
+    void SetTrack(MediaTrack* track)
+    {
+        isTrackDependent_ = true;
+        track_ = track;
+
+        for (auto subZone : subZones_)
+            subZone->SetTrack(track);
+    }
 
     void SetSlotIndex(int index)
     {
@@ -892,7 +911,7 @@ protected:
     vector<Widget*> widgets_;
     map<string, Widget*> widgetsByName_;
 
-    virtual void SurfaceOutMonitor(Widget* widget, string address, string value);
+    virtual void SurfaceOutMonitor(string address, string value);
 
     void InitZones(string zoneFolder);
 
@@ -1047,6 +1066,8 @@ public:
     virtual void SetReceiveMapTrackFXMenusSlot() { shouldReceiveMapTrackFXMenusSlot_ = true; }
     virtual bool GetReceiveMapTrackFXMenusSlot() { return shouldReceiveMapTrackFXMenusSlot_; }
    
+    //virtual void FlushMessages() { }
+
     void MakeHomeDefault()
     {
         homeZone_ = GetZone("Home");
@@ -1123,15 +1144,15 @@ public:
         for(auto activeZones : allActiveZones_)
             for(auto zone : *activeZones)
                 zone->RequestUpdate(usedWidgets);
-        
-        if(homeZone_ != nullptr)
+
+        if (homeZone_ != nullptr)
             homeZone_->RequestUpdate(usedWidgets);
-        
+
         for(auto widget : widgets_)
         {
             auto it = find(usedWidgets.begin(), usedWidgets.end(), widget);
             
-            if ( it == widgets_.end() )
+            if ( it == usedWidgets.end() )
                 widget->Clear();
         }
     }
@@ -1191,6 +1212,33 @@ public:
     }
 };
 
+struct MidiMessage {
+    enum class type { MESSAGE, FIRST_SECOND_THIRD };
+    type type_;
+    MIDI_event_ex_t* message_;
+    int first_;
+    int second_;
+    int third_;
+
+    MidiMessage(MIDI_event_ex_t* message)
+    {
+        type_ = type::MESSAGE;
+        message_ = message;
+        first_ = 0;
+        second_ = 0;
+        third_ = 0;
+    }
+
+    MidiMessage(int first, int second, int third)
+    {
+        type_ = type::FIRST_SECOND_THIRD;
+        message_ = nullptr;
+        first_ = first;
+        second_ = second;
+        third_ = third;
+    }
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Midi_ControlSurface : public ControlSurface
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1201,6 +1249,8 @@ private:
     midi_Output* midiOutput_ = nullptr;
     map<int, vector<Midi_CSIMessageGenerator*>> Midi_CSIMessageGeneratorsByMessage_;
     
+    vector<shared_ptr<MidiMessage>> midiMessageQueue_;
+
     // special processing for MCU meters
     bool hasMCUMeters_ = false;
     int displayType_ = 0x14;
@@ -1234,6 +1284,9 @@ public:
     
     virtual string GetSourceFileName() override { return "/CSI/Surfaces/Midi/" + templateFilename_; }
     
+    //void AddMidiMessage(MIDI_event_ex_t* midiMessage);
+    //void AddMidiMessage(int first, int second, int third);
+    //void FlushMessages() override;
     void SendMidiMessage(MIDI_event_ex_t* midiMessage);
     void SendMidiMessage(int first, int second, int third);
 
@@ -1262,6 +1315,25 @@ public:
     }
 };
 
+struct OSCMessage {
+    enum class type { DOUBLE, STRING };
+    type type_;
+    string oscAddress_;
+    double value_;
+    string str_value_;
+
+    OSCMessage(string oscAddress, double value) {
+        type_ = type::DOUBLE;
+        oscAddress_ = oscAddress;
+        value_ = value;
+    }
+    OSCMessage(string oscAddress, string value) {
+        type_ = type::STRING;
+        oscAddress_ = oscAddress;
+        str_value_ = value;
+    }
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class OSC_ControlSurface : public ControlSurface
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1272,7 +1344,9 @@ private:
     oscpkt::UdpSocket* const outSocket_ = nullptr;
     oscpkt::PacketReader packetReader_;
     oscpkt::PacketWriter packetWriter_;
-    
+
+    vector<shared_ptr<OSCMessage>> oscMessageQueue_;
+
     void InitWidgets(string templateFilename, string zoneFolder);
     void ProcessOSCMessage(string message, double value);
 
@@ -1284,13 +1358,19 @@ public:
     }
     
     virtual ~OSC_ControlSurface() {}
-    
+
     virtual string GetSourceFileName() override { return "/CSI/Surfaces/OSC/" + templateFilename_; }
     
     virtual void LoadingZone(string zoneName) override;
-    void SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, string oscAddress, double value);
-    void SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, string oscAddress, string value);
-    
+
+    //virtual void FlushMessages() override;
+
+    //void AddOSCMessage(string oscAddress, double value);
+    //void AddOSCMessage(string oscAddress, string value);
+    //void FlushOSCMessages();
+    void SendOSCMessage(string oscAddress, double value);
+    void SendOSCMessage(string oscAddress, string value);
+
     virtual void ForceClearAllWidgets() override
     {
         LoadingZone("Home");
@@ -2252,7 +2332,6 @@ public:
     }
     */
 
-
     void Run()
     {
         trackNavigationManager_->RebuildTrackList();
@@ -2260,7 +2339,7 @@ public:
         for(auto surface : surfaces_)
             surface->HandleExternalInput();
         
-        for(auto surface : surfaces_)
+        for (auto surface : surfaces_)
             surface->RequestUpdate();
     }
 

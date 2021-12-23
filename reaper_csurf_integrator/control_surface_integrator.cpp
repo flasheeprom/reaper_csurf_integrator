@@ -1818,6 +1818,9 @@ int Zone::GetSlotIndex()
 
 void Zone::RequestUpdateWidget(Widget* widget)
 {
+    if (!isValid())
+        return;
+
     widget->HandleQueuedActions(this);
     
     // GAW TBD -- This is where we might cut loose multiple feedback if we can individually control it
@@ -2032,38 +2035,38 @@ void OSC_FeedbackProcessor::SetRGBValue(int r, int g, int b)
     if(lastRValue != r)
     {
         lastRValue = r;
-        surface_->SendOSCMessage(this, oscAddress_ + "/rColor", r);
+        surface_->SendOSCMessage(oscAddress_ + "/rColor", r);
     }
     
     if(lastGValue != g)
     {
         lastGValue = g;
-        surface_->SendOSCMessage(this, oscAddress_ + "/gColor", g);
+        surface_->SendOSCMessage(oscAddress_ + "/gColor", g);
     }
     
     if(lastBValue != b)
     {
         lastBValue = b;
-        surface_->SendOSCMessage(this, oscAddress_ + "/bColor", b);
+        surface_->SendOSCMessage(oscAddress_ + "/bColor", b);
     }
 }
 
 void OSC_FeedbackProcessor::ForceValue(double value)
 {
     lastDoubleValue_ = value;
-    surface_->SendOSCMessage(this, oscAddress_, value);
+    surface_->SendOSCMessage(oscAddress_, value);
 }
 
 void OSC_FeedbackProcessor::ForceValue(int param, double value)
 {
     lastDoubleValue_ = value;
-    surface_->SendOSCMessage(this, oscAddress_, value);
+    surface_->SendOSCMessage(oscAddress_, value);
 }
 
 void OSC_FeedbackProcessor::ForceValue(string value)
 {
     lastStringValue_ = value;
-    surface_->SendOSCMessage(this, oscAddress_, value);
+    surface_->SendOSCMessage(oscAddress_, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2095,7 +2098,7 @@ void ControlSurface::InitZones(string zoneFolder)
     }
 }
 
-void ControlSurface::SurfaceOutMonitor(Widget* widget, string address, string value)
+void ControlSurface::SurfaceOutMonitor(string address, string value)
 {
     if(TheManager->GetSurfaceOutDisplay())
         DAW::ShowConsoleMsg(("OUT->" + name_ + " " + address + " " + value + "\n").c_str());
@@ -2134,8 +2137,8 @@ void ControlSurface::MapTrackSendsSlotToWidgets()
 
 void ControlSurface::UnmapSelectedTrackSendsSlotFromWidgets()
 {
-    for(auto zone : activeSelectedTrackSendsZones_)
-        zone->Deactivate();
+    //for(auto zone : activeSelectedTrackSendsZones_)
+    //    zone->Deactivate();
 
     if(numSends_ == 1)
     {
@@ -2171,8 +2174,8 @@ void ControlSurface::MapSelectedTrackSendsSlotToWidgets()
 
 void ControlSurface::UnmapSelectedTrackSendsFromWidgets()
 {
-    for(auto zone : activeSelectedTrackSendsZones_)
-        zone->Deactivate();
+    //for(auto zone : activeSelectedTrackSendsZones_)
+    //    zone->Deactivate();
 
     activeSelectedTrackSendsZones_.clear();
 }
@@ -2207,8 +2210,8 @@ void ControlSurface::MapTrackReceivesSlotToWidgets()
 
 void ControlSurface::UnmapSelectedTrackReceivesSlotFromWidgets()
 {
-    for(auto zone : activeSelectedTrackReceivesZones_)
-        zone->Deactivate();
+    //for(auto zone : activeSelectedTrackReceivesZones_)
+    //    zone->Deactivate();
 
     if(numSends_ == 1)
     {
@@ -2244,8 +2247,8 @@ void ControlSurface::MapSelectedTrackReceivesSlotToWidgets()
 
 void ControlSurface::UnmapSelectedTrackReceivesFromWidgets()
 {
-    for(auto zone : activeSelectedTrackReceivesZones_)
-        zone->Deactivate();
+    //for(auto zone : activeSelectedTrackReceivesZones_)
+    //    zone->Deactivate();
     activeSelectedTrackReceivesZones_.clear();
 }
 
@@ -2277,12 +2280,12 @@ void ControlSurface::MapTrackFXMenusSlotToWidgets()
 
 void ControlSurface::UnmapSelectedTrackFXFromMenu()
 {
-    for(auto zone : activeSelectedTrackFXMenuZones_)
-        zone->Deactivate();
+    //for(auto zone : activeSelectedTrackFXMenuZones_)
+    //    zone->Deactivate();
     activeSelectedTrackFXMenuZones_.clear();
     
-    for(auto zone : activeSelectedTrackFXMenuFXZones_)
-        zone->Deactivate();
+    //for(auto zone : activeSelectedTrackFXMenuFXZones_)
+    //    zone->Deactivate();
     activeSelectedTrackFXMenuFXZones_.clear();
 }
 
@@ -2330,8 +2333,8 @@ void ControlSurface::MapSelectedTrackItemsToWidgets(MediaTrack* track, string ba
 
 void ControlSurface::UnmapSelectedTrackFXFromWidgets()
 {
-    for(auto zone : activeSelectedTrackFXZones_)
-        zone->Deactivate();
+    //for(auto zone : activeSelectedTrackFXZones_)
+    //    zone->Deactivate();
     activeSelectedTrackFXZones_.clear();
 }
 
@@ -2346,8 +2349,8 @@ void ControlSurface::MapSelectedTrackFXToWidgets()
 
 void ControlSurface::MapSelectedTrackFXMenuSlotToWidgets(int fxSlot)
 {
-    for(auto zone : activeSelectedTrackFXMenuFXZones_)
-        zone->Deactivate();
+    //for(auto zone : activeSelectedTrackFXMenuFXZones_)
+    //    zone->Deactivate();
     activeSelectedTrackFXMenuFXZones_.clear();
     
     MapSelectedTrackFXSlotToWidgets(&activeSelectedTrackFXMenuFXZones_, fxSlot);
@@ -2366,6 +2369,8 @@ void ControlSurface::MapSelectedTrackFXSlotToWidgets(vector<Zone*> *activeZones,
     
     if(Zone* zone = GetZone(FXName))
     {
+        zone->SetTrack(selectedTrack);
+
         if( ! zone->GetNavigator()->GetIsFocusedFXNavigator())
         {
             zone->SetSlotIndex(fxSlot);
@@ -2376,8 +2381,8 @@ void ControlSurface::MapSelectedTrackFXSlotToWidgets(vector<Zone*> *activeZones,
 
 void ControlSurface::UnmapFocusedFXFromWidgets()
 {
-    for(auto zone : activeFocusedFXZones_)
-        zone->Deactivate();
+    //for(auto zone : activeFocusedFXZones_)
+    //    zone->Deactivate();
 
     activeFocusedFXZones_.clear();
 }
@@ -2581,13 +2586,67 @@ void Midi_ControlSurface::ProcessMidiMessage(const MIDI_event_ex_t* evt)
     }
 }
 
+//void Midi_ControlSurface::AddMidiMessage(MIDI_event_ex_t* midiMessage)
+//{
+//    for (int i = 0; i < midiMessageQueue_.size(); i++)
+//    {
+//        auto& msg = midiMessageQueue_[i];
+//
+//        // Check if the MIDI status being sent is the same
+//        if (msg->type_ == MidiMessage::type::MESSAGE && msg->message_->midi_message[0] == midiMessage->midi_message[0])
+//        {
+//            // Replace the message by the new one
+//            msg->message_ = midiMessage;
+//            return;
+//        }
+//    }
+//
+//    midiMessageQueue_.push_back(make_shared<MidiMessage>(midiMessage));
+//}
+//
+//void Midi_ControlSurface::AddMidiMessage(int first, int second, int third)
+//{
+//    for (int i = 0; i < midiMessageQueue_.size(); i++)
+//    {
+//        auto& msg = midiMessageQueue_[i];
+//
+//        // Check if the MIDI status being sent is the same
+//        if (msg->type_ == MidiMessage::type::FIRST_SECOND_THIRD && msg->first_ == first)
+//        {
+//            //// Replace second and third
+//            //msg->second_ = second;
+//            //msg->third_ = third;
+//
+//            // Ignore the second message
+//            return;
+//        }
+//    }
+//
+//    midiMessageQueue_.push_back(make_shared<MidiMessage>(first, second, third));
+//}
+//
+//void Midi_ControlSurface::FlushMessages()
+//{
+//    for (auto& msg : midiMessageQueue_)
+//    {
+//        if (msg->type_ == MidiMessage::type::MESSAGE)
+//            SendMidiMessage(msg->message_);
+//        else if (msg->type_ == MidiMessage::type::FIRST_SECOND_THIRD)
+//            SendMidiMessage(msg->first_, msg->second_, msg->third_);
+//        else {
+//        }
+//    }
+//
+//    midiMessageQueue_.clear();
+//}
+
 void Midi_ControlSurface::SendMidiMessage(MIDI_event_ex_t* midiMessage)
 {
     if(midiOutput_)
         midiOutput_->SendMsg(midiMessage, -1);
     
-    string output = "OUT->" + name_ + " ";
-    
+    string output = "OUT->" + name_ + " ";  
+
     for(int i = 0; i < midiMessage->size; i++)
     {
         char buffer[32];
@@ -2660,7 +2719,55 @@ void OSC_ControlSurface::LoadingZone(string zoneName)
         DAW::ShowConsoleMsg((zoneName + "->" + "LoadingZone---->" + name_ + "\n").c_str());
 }
 
-void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, string oscAddress, double value)
+//void OSC_ControlSurface::FlushMessages()
+//{
+//    for (auto& msg : oscMessageQueue_)
+//    {
+//        if (msg->type_ == OSCMessage::type::DOUBLE)
+//            SendOSCMessage(msg->oscAddress_, msg->value_);
+//        else if (msg->type_ == OSCMessage::type::STRING)
+//            SendOSCMessage(msg->oscAddress_, msg->str_value_);
+//        else {
+//        }
+//    }
+//
+//    oscMessageQueue_.clear();
+//}
+//
+//void OSC_ControlSurface::AddOSCMessage(string oscAddress, double value)
+//{
+//    for (int i = 0; i < oscMessageQueue_.size(); i++) {
+//        auto& msg = oscMessageQueue_[i];
+//
+//        if (msg->type_ == OSCMessage::type::DOUBLE && msg->oscAddress_ == oscAddress)
+//        {
+//            // Update the value of the existing message in the queue
+//            msg->value_ = value;
+//            return;
+//        }
+//    }
+//
+//    // No compatible message found in the queue. Add a new one.
+//    oscMessageQueue_.push_back(make_shared<OSCMessage>(oscAddress, value));
+//}
+//
+//void OSC_ControlSurface::AddOSCMessage(string oscAddress, string value)
+//{
+//    for (int i = 0; i < oscMessageQueue_.size(); i++) {
+//        auto& msg = oscMessageQueue_[i];
+//        if (msg->type_ == OSCMessage::type::STRING && msg->oscAddress_ == oscAddress)
+//        {
+//            // Update the value of the existing message in the queue
+//            msg->str_value_ = value;
+//            return;
+//        }
+//    }
+//
+//    // No compatible message found in the queue. Add a new one.
+//    oscMessageQueue_.push_back(make_shared<OSCMessage>(oscAddress, value));
+//}
+
+void OSC_ControlSurface::SendOSCMessage(string oscAddress, double value)
 {
     if(outSocket_ != nullptr && outSocket_->isOk())
     {
@@ -2677,7 +2784,7 @@ void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor
     }
 }
 
-void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, string oscAddress, string value)
+void OSC_ControlSurface::SendOSCMessage(string oscAddress, string value)
 {
     if(outSocket_ != nullptr && outSocket_->isOk())
     {
@@ -2687,8 +2794,7 @@ void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor
         outSocket_->sendPacket(packetWriter_.packetData(), packetWriter_.packetSize());
     }
     
-    SurfaceOutMonitor(feedbackProcessor->GetWidget(), oscAddress, value);
-    
+    SurfaceOutMonitor(oscAddress, value);
 }
 
 void Midi_ControlSurface::InitializeMCU()
